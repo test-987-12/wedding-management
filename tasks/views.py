@@ -2,7 +2,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import HttpResponseForbidden, JsonResponse
-from django.utils import timezone
 from django.db import transaction
 
 from .models import Task, TaskComment, Checklist, ChecklistItem, Reminder
@@ -210,7 +209,6 @@ def task_delete(request, task_id):
         return HttpResponseForbidden("You don't have permission to delete tasks.")
 
     if request.method == 'POST':
-        wedding = task.wedding
         task_title = task.title
         task.delete()
 
@@ -389,23 +387,38 @@ def checklist_create(request):
         form = ChecklistForm(request.POST, user=request.user)
         formset = ChecklistItemFormSet(request.POST)
 
+        print(f"Form valid: {form.is_valid()}")
+        print(f"Formset valid: {formset.is_valid()}")
+
+        if not form.is_valid():
+            print(f"Form errors: {form.errors}")
+
+        if not formset.is_valid():
+            print(f"Formset errors: {formset.errors}")
+
         if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                # Save checklist
-                checklist = form.save(commit=False)
-                checklist.created_by = request.user
+            try:
+                with transaction.atomic():
+                    # Save checklist
+                    checklist = form.save(commit=False)
+                    checklist.created_by = request.user
 
-                # If it's a template, set wedding to None
-                if checklist.is_template:
-                    checklist.wedding = None
+                    # If it's a template, set wedding to None
+                    if checklist.is_template:
+                        checklist.wedding = None
 
-                checklist.save()
+                    checklist.save()
+                    print(f"Checklist saved: {checklist.id} - {checklist.title}")
 
-                # Save checklist items
-                formset.instance = checklist
-                formset.save()
+                    # Save checklist items
+                    formset.instance = checklist
+                    formset.save()
+                    print(f"Formset saved with {formset.total_form_count()} items")
 
-            messages.success(request, f"Checklist '{checklist.title}' created successfully.")
+                messages.success(request, f"Checklist '{checklist.title}' created successfully.")
+            except Exception as e:
+                print(f"Error saving checklist: {str(e)}")
+                messages.error(request, f"Error creating checklist: {str(e)}")
             return redirect('checklist_detail', checklist_id=checklist.id)
     else:
         initial = {}
@@ -445,20 +458,36 @@ def checklist_edit(request, checklist_id):
         form = ChecklistForm(request.POST, instance=checklist, user=request.user)
         formset = ChecklistItemFormSet(request.POST, instance=checklist)
 
+        print(f"Edit form valid: {form.is_valid()}")
+        print(f"Edit formset valid: {formset.is_valid()}")
+
+        if not form.is_valid():
+            print(f"Edit form errors: {form.errors}")
+
+        if not formset.is_valid():
+            print(f"Edit formset errors: {formset.errors}")
+
         if form.is_valid() and formset.is_valid():
-            with transaction.atomic():
-                # Save checklist
-                checklist = form.save()
+            try:
+                with transaction.atomic():
+                    # Save checklist
+                    checklist = form.save()
+                    print(f"Checklist updated: {checklist.id} - {checklist.title}")
 
-                # If it's a template, set wedding to None
-                if checklist.is_template:
-                    checklist.wedding = None
-                    checklist.save()
+                    # If it's a template, set wedding to None
+                    if checklist.is_template:
+                        checklist.wedding = None
+                        checklist.save()
+                        print("Set wedding to None for template")
 
-                # Save checklist items
-                formset.save()
+                    # Save checklist items
+                    formset.save()
+                    print(f"Formset updated with {formset.total_form_count()} items")
 
-            messages.success(request, f"Checklist '{checklist.title}' updated successfully.")
+                messages.success(request, f"Checklist '{checklist.title}' updated successfully.")
+            except Exception as e:
+                print(f"Error updating checklist: {str(e)}")
+                messages.error(request, f"Error updating checklist: {str(e)}")
             return redirect('checklist_detail', checklist_id=checklist.id)
     else:
         form = ChecklistForm(instance=checklist, user=request.user)
@@ -509,39 +538,82 @@ def checklist_item_toggle(request, item_id):
     if request.method != 'POST':
         return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
 
-    item = get_object_or_404(ChecklistItem, id=item_id)
-    user = request.user
+    try:
+        print(f"Processing toggle request for item ID: {item_id}")
 
-    # Check if user has permission
-    has_permission = False
-    if item.checklist.is_template and user.profile.role == 'admin':
-        has_permission = True
-    elif user.profile.role == 'admin' and item.checklist.wedding and item.checklist.wedding.admin == user:
-        has_permission = True
-    elif user.profile.role == 'team_member' and item.checklist.wedding and item.checklist.wedding.team_members.filter(member=user).exists():
-        has_permission = True
+        # Get the item
+        try:
+            item = ChecklistItem.objects.get(id=item_id)
+            print(f"Found item: {item.id} - {item.title}")
+        except ChecklistItem.DoesNotExist:
+            print(f"Item with ID {item_id} not found")
+            return JsonResponse({
+                'status': 'error',
+                'message': f"Item with ID {item_id} not found"
+            }, status=404)
 
-    if not has_permission:
-        return JsonResponse({'error': 'Permission denied'}, status=403)
+        user = request.user
+        print(f"User: {user.username}, Role: {user.profile.role}")
 
-    # Toggle completion status
-    if item.is_completed:
-        item.is_completed = False
-        item.completed_date = None
-        item.completed_by = None
-        item.save()
+        # Check if user has permission
+        has_permission = False
+        if item.checklist.is_template and user.profile.role == 'admin':
+            has_permission = True
+            print("Permission granted: Admin accessing template item")
+        elif user.profile.role == 'admin' and item.checklist.wedding and item.checklist.wedding.admin == user:
+            has_permission = True
+            print("Permission granted: Admin accessing wedding item")
+        elif user.profile.role == 'team_member' and item.checklist.wedding and item.checklist.wedding.team_members.filter(member=user).exists():
+            has_permission = True
+            print("Permission granted: Team member accessing wedding item")
+
+        if not has_permission:
+            print("Permission denied")
+            return JsonResponse({'status': 'error', 'message': 'Permission denied'}, status=403)
+
+        # Toggle completion status
+        current_status = item.is_completed
+        print(f"Current completion status: {current_status}")
+
+        if current_status:
+            # Mark as incomplete
+            print("Marking item as incomplete")
+            item.is_completed = False
+            item.completed_date = None
+            item.completed_by = None
+            item.save()
+
+            print(f"Item {item.id} ({item.title}) marked as incomplete by {user.username}")
+
+            return JsonResponse({
+                'status': 'success',
+                'is_completed': False,
+                'message': f"Item '{item.title}' marked as incomplete."
+            })
+        else:
+            # Mark as complete
+            print("Marking item as complete")
+            from django.utils import timezone
+            item.is_completed = True
+            item.completed_date = timezone.now()
+            item.completed_by = user
+            item.save()
+
+            print(f"Item {item.id} ({item.title}) marked as complete by {user.username}")
+
+            return JsonResponse({
+                'status': 'success',
+                'is_completed': True,
+                'message': f"Item '{item.title}' marked as complete."
+            })
+    except Exception as e:
+        import traceback
+        print(f"Error in checklist_item_toggle: {str(e)}")
+        print(traceback.format_exc())
         return JsonResponse({
-            'status': 'success',
-            'is_completed': False,
-            'message': f"Item '{item.title}' marked as incomplete."
-        })
-    else:
-        item.complete(user)
-        return JsonResponse({
-            'status': 'success',
-            'is_completed': True,
-            'message': f"Item '{item.title}' marked as complete."
-        })
+            'status': 'error',
+            'message': f"An error occurred: {str(e)}"
+        }, status=500)
 
 @login_required
 def use_template(request, template_id):

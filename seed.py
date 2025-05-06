@@ -51,8 +51,12 @@ def generate_qr_code(url):
 
     return buffer
 
-def reset_database():
-    """Reset the database by removing all data but keeping the structure"""
+def reset_database(preserve_users=True):
+    """Reset the database by removing all data but keeping the structure
+
+    Args:
+        preserve_users (bool): If True, User and UserProfile data will be preserved
+    """
     print("Resetting database...")
 
     # Clear all data from models in reverse order of dependencies
@@ -105,11 +109,15 @@ def reset_database():
         print("  Clearing Wedding data...")
         Wedding.objects.all().delete()
 
-        print("  Clearing UserProfile data...")
-        UserProfile.objects.all().delete()
+        # Only clear User and UserProfile data if preserve_users is False
+        if not preserve_users:
+            print("  Clearing UserProfile data...")
+            UserProfile.objects.all().delete()
 
-        print("  Clearing non-superuser User data...")
-        User.objects.filter(is_superuser=False).delete()
+            print("  Clearing non-superuser User data...")
+            User.objects.filter(is_superuser=False).delete()
+        else:
+            print("  Preserving User and UserProfile data as requested...")
 
     # Clear media files
     media_dirs = ['media/wedding_media/', 'media/qr_codes/']
@@ -193,10 +201,15 @@ def create_users():
                     }
                 )
 
-                if profile_created:
-                    print(f"  ✓ Created profile for {data['username']}")
+                # Update profile data if it already exists
+                if not profile_created:
+                    profile.role = 'admin'
+                    profile.phone = data['phone']
+                    profile.address = data['address']
+                    profile.save()
+                    print(f"  ✓ Updated profile for {data['username']}")
                 else:
-                    print(f"  ⚠ Profile for {data['username']} already exists")
+                    print(f"  ✓ Created profile for {data['username']}")
 
                 admin_users.append(user)
             except Exception as e:
@@ -243,10 +256,18 @@ def create_users():
                     }
                 )
 
-                if profile_created:
-                    print(f"  ✓ Created profile for {username}")
+                # Update profile data if it already exists
+                if not profile_created:
+                    profile.role = 'team_member'
+                    # Only update phone and address if they're empty
+                    if not profile.phone:
+                        profile.phone = fake.phone_number()
+                    if not profile.address:
+                        profile.address = fake.address().replace('\n', ', ')
+                    profile.save()
+                    print(f"  ✓ Updated profile for {username}")
                 else:
-                    print(f"  ⚠ Profile for {username} already exists")
+                    print(f"  ✓ Created profile for {username}")
 
                 team_members.append(user)
             except Exception as e:
@@ -293,10 +314,18 @@ def create_users():
                     }
                 )
 
-                if profile_created:
-                    print(f"  ✓ Created profile for {username}")
+                # Update profile data if it already exists
+                if not profile_created:
+                    profile.role = 'guest'
+                    # Only update phone and address if they're empty
+                    if not profile.phone:
+                        profile.phone = fake.phone_number()
+                    if not profile.address:
+                        profile.address = fake.address().replace('\n', ', ')
+                    profile.save()
+                    print(f"  ✓ Updated profile for {username}")
                 else:
-                    print(f"  ⚠ Profile for {username} already exists")
+                    print(f"  ✓ Created profile for {username}")
 
                 guest_users.append(user)
             except Exception as e:
@@ -909,10 +938,38 @@ def create_media(weddings, users):
     """Create media categories and items"""
     print("Creating media categories and items...")
 
+    # Import PIL for image generation
+    from PIL import Image, ImageDraw, ImageFont
+    import os
+    from django.conf import settings
+    from django.core.files.base import ContentFile
+    from io import BytesIO
+
     all_categories = []
     all_media = []
     all_comments = []
     all_likes = []
+
+    # Ensure media directories exist
+    media_dir = os.path.join(settings.MEDIA_ROOT, 'wedding_media')
+    thumbnails_dir = os.path.join(settings.MEDIA_ROOT, 'wedding_media', 'thumbnails')
+
+    os.makedirs(media_dir, exist_ok=True)
+    os.makedirs(thumbnails_dir, exist_ok=True)
+
+    # Wedding-themed colors for placeholder images
+    wedding_colors = [
+        (255, 192, 203),  # Pink
+        (255, 218, 185),  # Peach
+        (230, 230, 250),  # Lavender
+        (240, 248, 255),  # Alice Blue
+        (255, 250, 205),  # Lemon Chiffon
+        (255, 228, 225),  # Misty Rose
+        (245, 255, 250),  # Mint Cream
+        (255, 240, 245),  # Lavender Blush
+        (250, 235, 215),  # Antique White
+        (255, 222, 173),  # Navajo White
+    ]
 
     # Media category templates
     category_templates = [
@@ -926,6 +983,36 @@ def create_media(weddings, users):
         {'name': 'Details', 'description': 'Close-ups of wedding details and decorations'},
         {'name': 'Guests', 'description': 'Candid photos of wedding guests'}
     ]
+
+    # Function to create a plain placeholder image
+    def create_placeholder_image(width, height, category_name, image_number, wedding_title, color):
+        # Create a new image with the given color
+        image = Image.new('RGB', (width, height), color)
+        draw = ImageDraw.Draw(image)
+
+        # Create fonts with larger sizes
+        try:
+            # Try to use a system font
+            title_font = ImageFont.truetype("arial.ttf", 48)
+            subtitle_font = ImageFont.truetype("arial.ttf", 36)
+        except IOError:
+            # Fallback to default font if system font not available
+            title_font = ImageFont.load_default()
+            subtitle_font = ImageFont.load_default()
+
+        # Add text
+        text_color = (50, 50, 50)  # Darker gray text for better contrast
+
+        # Draw category name at the top
+        draw.text((width//2, height//4), category_name, fill=text_color, font=title_font, anchor="mm")
+
+        # Draw image number in the middle
+        draw.text((width//2, height//2), f"Image {image_number}", fill=text_color, font=subtitle_font, anchor="mm")
+
+        # Draw wedding title at the bottom
+        draw.text((width//2, 3*height//4), wedding_title, fill=text_color, font=subtitle_font, anchor="mm")
+
+        return image
 
     with transaction.atomic():
         for wedding in weddings:
@@ -948,9 +1035,6 @@ def create_media(weddings, users):
                     num_media_items = random.randint(5, 10)
 
                     for i in range(num_media_items):
-                        # For demo purposes, we'll create placeholder media files
-                        # In a real scenario, you would upload actual images
-
                         # Determine uploader (admin, team member, or guest)
                         uploader_type = random.choice(['admin', 'team', 'guest'])
                         if uploader_type == 'admin':
@@ -966,20 +1050,51 @@ def create_media(weddings, users):
                             else:
                                 uploader = wedding.admin
 
-                        # Create a placeholder file path
-                        file_path = f"wedding_{wedding.id}_category_{category.id}_image_{i+1}.jpg"
+                        # Generate a unique filename
+                        filename = f"wedding_{wedding.id}_category_{category.id}_image_{i+1}.jpg"
 
-                        media = Media.objects.create(
+                        # Create a placeholder image
+                        color = random.choice(wedding_colors)
+                        img = create_placeholder_image(
+                            800, 600,
+                            category.name,
+                            i+1,
+                            wedding.title,
+                            color
+                        )
+
+                        # Save the image to a BytesIO object
+                        img_io = BytesIO()
+                        img.save(img_io, format='JPEG', quality=85)
+                        img_io.seek(0)
+
+                        # Create the media object with the image
+                        media = Media(
                             wedding=wedding,
                             category=category,
                             title=f"{category.name} - Image {i+1}",
                             description=f"Image {i+1} in the {category.name} category",
                             media_type='photo',  # All demo items are photos
-                            file=file_path,
                             uploaded_by=uploader,
                             is_featured=random.random() > 0.8,  # 20% chance of being featured
                             is_private=random.random() > 0.9  # 10% chance of being private
                         )
+
+                        # Save the image to the file field
+                        media.file.save(filename, ContentFile(img_io.getvalue()), save=False)
+
+                        # Create a thumbnail (smaller version of the same image)
+                        thumb = img.copy()
+                        thumb.thumbnail((300, 300))
+                        thumb_io = BytesIO()
+                        thumb.save(thumb_io, format='JPEG', quality=85)
+                        thumb_io.seek(0)
+
+                        # Save the thumbnail
+                        media.thumbnail.save(f"thumb_{filename}", ContentFile(thumb_io.getvalue()), save=False)
+
+                        # Save the media object
+                        media.save()
                         all_media.append(media)
 
                         # Add 0-3 comments per media item
@@ -1038,18 +1153,22 @@ def create_media(weddings, users):
         'likes': all_likes
     }
 
-def seed_database():
-    """Main function to seed the database with comprehensive data"""
+def seed_database(preserve_users=True):
+    """Main function to seed the database with comprehensive data
+
+    Args:
+        preserve_users (bool): If True, existing users will be preserved
+    """
     start_time = time.time()
 
     print("Starting comprehensive database seeding process...")
     print("This will create a complete set of data for demonstration purposes.")
     print("The process may take a few minutes to complete.")
 
-    # Step 1: Reset the database (clear all data)
-    reset_database()
+    # Step 1: Reset the database (clear all data except users if preserve_users=True)
+    reset_database(preserve_users=preserve_users)
 
-    # Step 2: Create users
+    # Step 2: Create users (will skip existing users if they already exist)
     users = create_users()
 
     # Step 3: Create weddings
@@ -1135,4 +1254,16 @@ def seed_database():
     }
 
 if __name__ == "__main__":
-    seed_database()
+    import argparse
+
+    # Set up command line arguments
+    parser = argparse.ArgumentParser(description='Seed the database with comprehensive data.')
+    parser.add_argument('--preserve-users', action='store_true', default=True,
+                        help='Preserve existing users when seeding (default: True)')
+    parser.add_argument('--reset-users', action='store_false', dest='preserve_users',
+                        help='Reset users when seeding (removes existing users)')
+
+    args = parser.parse_args()
+
+    # Run the seeding process with the specified options
+    seed_database(preserve_users=args.preserve_users)

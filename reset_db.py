@@ -54,24 +54,47 @@ def run_migrations():
 
     print("Migrations complete.")
 
-def seed_data():
-    """Run the comprehensive seed script"""
+def seed_data(preserve_users=False):
+    """Run the comprehensive seed script
+
+    Args:
+        preserve_users (bool): If True, preserve existing users when seeding
+    """
     print("Seeding database...")
 
-    # Run the new comprehensive seed script
+    # Run the new comprehensive seed script with appropriate options
     print("Running seed.py...")
-    os.system('python seed.py')
+    if preserve_users:
+        os.system('python seed.py --preserve-users')
+    else:
+        os.system('python seed.py --reset-users')
 
     print("Database seeding complete.")
 
 if __name__ == "__main__":
-    # Confirm with the user
-    confirm = input("This will delete the database and all migrations. Are you sure? (y/n): ")
+    import argparse
+
+    # Set up command line arguments
+    parser = argparse.ArgumentParser(description='Reset and seed the database.')
+    parser.add_argument('--preserve-users', action='store_true',
+                        help='Preserve existing users when seeding (default: False)')
+    parser.add_argument('--yes', '-y', action='store_true',
+                        help='Skip confirmation prompt')
+
+    args = parser.parse_args()
+
+    if args.yes:
+        confirm = 'y'
+    else:
+        # Confirm with the user
+        confirm = input("This will delete the database and all migrations. Are you sure? (y/n): ")
 
     if confirm.lower() == 'y':
         reset_database()
         run_migrations()
-        seed_data()
+        seed_data(preserve_users=args.preserve_users)
         print("Database has been reset and reseeded successfully.")
+        if args.preserve_users:
+            print("Existing users have been preserved.")
     else:
         print("Operation cancelled.")

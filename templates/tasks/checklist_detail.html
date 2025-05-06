@@ -7,58 +7,106 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Handle checklist item completion toggle
         const checkboxes = document.querySelectorAll('.item-checkbox');
-        
+
         checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
+            checkbox.addEventListener('click', function(e) {
+                // Prevent the default checkbox behavior
+                e.preventDefault();
                 const itemId = this.dataset.itemId;
                 const itemTitle = this.dataset.itemTitle;
                 const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-                
+
                 // Show loading state
                 const itemRow = this.closest('tr');
                 const titleElement = itemRow.querySelector('.item-title');
-                const statusIcon = itemRow.querySelector('.status-icon');
+                // For non-guest users, there's no status-icon span, so we need to handle this differently
+                const statusIconContainer = itemRow.querySelector('.status-icon');
                 const completedByElement = itemRow.querySelector('.completed-by');
                 const completedDateElement = itemRow.querySelector('.completed-date');
-                
+
+                console.log('Elements found:', {
+                    itemRow: !!itemRow,
+                    titleElement: !!titleElement,
+                    statusIconContainer: !!statusIconContainer,
+                    completedByElement: !!completedByElement,
+                    completedDateElement: !!completedDateElement
+                });
+
                 // Add loading class
                 itemRow.classList.add('opacity-50');
-                
+
+                console.log('Toggling item:', itemId);
+
                 fetch(`{% url 'checklist_item_toggle' item_id=0 %}`.replace('0', itemId), {
                     method: 'POST',
                     headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({})
+                        'X-CSRFToken': csrfToken
+                    }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
                     // Remove loading class
                     itemRow.classList.remove('opacity-50');
-                    
+
+                    console.log('Response data:', data);
+
                     if (data.status === 'success') {
+                        // Make sure checkbox reflects the correct state
+                        this.checked = data.is_completed;
+
                         // Update UI based on completion status
                         if (data.is_completed) {
-                            titleElement.classList.add('line-through', 'text-gray-500');
-                            statusIcon.innerHTML = '<i class="fas fa-check-circle text-green-500"></i>';
-                            completedByElement.textContent = 'You';
-                            completedDateElement.textContent = 'Just now';
-                            
+                            // Update title styling
+                            if (titleElement) {
+                                titleElement.classList.add('line-through', 'text-gray-500');
+                            }
+
+                            // Update status icon if it exists (for guest view)
+                            if (statusIconContainer) {
+                                statusIconContainer.innerHTML = '<i class="fas fa-check-circle text-green-500"></i>';
+                            }
+
+                            // Update completed by and date
+                            if (completedByElement) {
+                                completedByElement.textContent = 'You';
+                            }
+
+                            if (completedDateElement) {
+                                completedDateElement.textContent = 'Just now';
+                            }
+
                             // Show success message
                             showMessage('success', `Item "${itemTitle}" marked as complete.`);
                         } else {
-                            titleElement.classList.remove('line-through', 'text-gray-500');
-                            statusIcon.innerHTML = '<i class="far fa-circle text-gray-400"></i>';
-                            completedByElement.textContent = '-';
-                            completedDateElement.textContent = '-';
-                            
+                            // Update title styling
+                            if (titleElement) {
+                                titleElement.classList.remove('line-through', 'text-gray-500');
+                            }
+
+                            // Update status icon if it exists (for guest view)
+                            if (statusIconContainer) {
+                                statusIconContainer.innerHTML = '<i class="far fa-circle text-gray-400"></i>';
+                            }
+
+                            // Update completed by and date
+                            if (completedByElement) {
+                                completedByElement.textContent = '-';
+                            }
+
+                            if (completedDateElement) {
+                                completedDateElement.textContent = '-';
+                            }
+
                             // Show success message
                             showMessage('success', `Item "${itemTitle}" marked as incomplete.`);
                         }
                     } else {
                         // Show error message
-                        showMessage('error', data.error || 'An error occurred');
+                        showMessage('error', data.message || 'An error occurred');
+                        console.error('Error from server:', data.message);
                         // Reset checkbox to original state
                         this.checked = !this.checked;
                     }
@@ -66,23 +114,33 @@
                 .catch(error => {
                     // Remove loading class
                     itemRow.classList.remove('opacity-50');
-                    
-                    // Show error message
-                    showMessage('error', 'An error occurred while updating the item');
-                    console.error('Error:', error);
-                    
+
+                    // Show detailed error message
+                    const errorMessage = `Error: ${error.message || 'Unknown error'}`;
+                    showMessage('error', errorMessage);
+                    console.error('Error details:', error);
+                    console.error('Error message:', error.message);
+                    console.error('Error stack:', error.stack);
+
                     // Reset checkbox to original state
                     this.checked = !this.checked;
+
+                    // Reload the page if there's a serious error
+                    setTimeout(() => {
+                        if (confirm('There was an error updating the item. Would you like to reload the page?')) {
+                            window.location.reload();
+                        }
+                    }, 1000);
                 });
             });
         });
-        
+
         // Function to show messages
         function showMessage(type, message) {
             const alertContainer = document.getElementById('alert-container');
             const alertClass = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-red-100 border-red-500 text-red-700';
             const icon = type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle';
-            
+
             const alert = document.createElement('div');
             alert.className = `${alertClass} px-4 py-3 rounded relative border-l-4 mb-4`;
             alert.innerHTML = `
@@ -98,14 +156,14 @@
                     </button>
                 </div>
             `;
-            
+
             alertContainer.appendChild(alert);
-            
+
             // Add event listener to close button
             alert.querySelector('.close-alert').addEventListener('click', function() {
                 alert.remove();
             });
-            
+
             // Auto-remove after 5 seconds
             setTimeout(() => {
                 if (alert.parentNode) {
@@ -121,7 +179,7 @@
 <div class="container mx-auto px-4 py-8">
     <!-- Alert container for dynamic messages -->
     <div id="alert-container" class="mb-4"></div>
-    
+
     <!-- Page Header -->
     <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8">
         <div>
@@ -132,7 +190,7 @@
                 <p class="text-gray-600">Template Checklist</p>
             {% endif %}
         </div>
-        
+
         {% if user.profile.role != 'guest' %}
             <div class="mt-4 md:mt-0 flex flex-wrap gap-3">
                 <a href="{% url 'checklist_edit' checklist_id=checklist.id %}" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition duration-150 ease-in-out">
@@ -144,7 +202,7 @@
             </div>
         {% endif %}
     </div>
-    
+
     <!-- Checklist Description -->
     {% if checklist.description %}
         <div class="bg-white rounded-xl shadow-md p-6 mb-8">
@@ -152,13 +210,13 @@
             <p class="text-gray-700">{{ checklist.description }}</p>
         </div>
     {% endif %}
-    
+
     <!-- Checklist Items -->
     <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
         <div class="p-6 border-b border-gray-200">
             <h2 class="text-xl font-bold text-gray-900">Checklist Items</h2>
         </div>
-        
+
         {% if items %}
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
@@ -178,8 +236,8 @@
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex items-center">
                                         {% if user.profile.role != 'guest' %}
-                                            <input type="checkbox" class="item-checkbox h-5 w-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500" 
-                                                   data-item-id="{{ item.id }}" 
+                                            <input type="checkbox" class="item-checkbox h-5 w-5 text-primary-600 rounded border-gray-300 focus:ring-primary-500"
+                                                   data-item-id="{{ item.id }}"
                                                    data-item-title="{{ item.title }}"
                                                    {% if item.is_completed %}checked{% endif %}>
                                         {% else %}
@@ -246,7 +304,7 @@
             </div>
         {% endif %}
     </div>
-    
+
     <!-- Back Button -->
     <div class="mt-8">
         <a href="{% url 'checklist' %}{% if checklist.wedding %}?wedding={{ checklist.wedding.id }}{% endif %}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
