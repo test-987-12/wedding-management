@@ -10,7 +10,7 @@
             <h1 class="text-3xl font-serif font-bold text-gray-900 mb-2">{{ wedding.title }} Gallery</h1>
             <p class="text-gray-600">{{ wedding.bride_name }} & {{ wedding.groom_name }}</p>
         </div>
-        
+
         <div class="mt-4 md:mt-0 flex flex-wrap gap-3">
             <a href="{% url 'gallery_upload' %}?wedding={{ wedding.id }}" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition duration-150 ease-in-out">
                 <i class="fas fa-upload mr-2"></i> Upload Media
@@ -20,7 +20,7 @@
             </a>
         </div>
     </div>
-    
+
     <!-- Wedding Info Banner -->
     <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
         <div class="bg-primary-600 px-6 py-4 text-white">
@@ -37,7 +37,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Filters and Categories -->
     <div class="bg-white rounded-xl shadow-md p-4 mb-8">
         <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
@@ -46,7 +46,7 @@
                 <button class="filter-btn px-4 py-2 text-sm font-medium bg-white text-gray-700 hover:bg-gray-50 border-t border-b border-r border-gray-300" data-filter="photo">Photos</button>
                 <button class="filter-btn px-4 py-2 text-sm font-medium rounded-r-lg bg-white text-gray-700 hover:bg-gray-50 border-t border-b border-r border-gray-300" data-filter="video">Videos</button>
             </div>
-            
+
             {% if categories %}
                 <div class="relative w-full md:w-64">
                     <select id="category-filter" class="w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md">
@@ -57,7 +57,7 @@
                     </select>
                 </div>
             {% endif %}
-            
+
             <div class="relative w-full md:w-64">
                 <input type="text" id="media-search" class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="Search media...">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -66,7 +66,7 @@
             </div>
         </div>
     </div>
-    
+
     {% if media_items %}
         <!-- Featured Media -->
         {% with featured=media_items|dictsortreversed:"is_featured"|slice:":1" %}
@@ -74,11 +74,11 @@
                 <div class="mb-8">
                     <h2 class="text-2xl font-serif font-bold text-gray-900 mb-4">Featured</h2>
                     <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                        <div class="relative aspect-w-16 aspect-h-9 bg-gray-900">
+                        <div class="relative bg-gray-900" style="height: 400px;">
                             {% if featured.0.is_photo %}
                                 <img src="{{ featured.0.file.url }}" alt="{{ featured.0.title }}" class="object-contain w-full h-full">
                             {% else %}
-                                <video controls class="w-full h-full">
+                                <video controls class="w-full h-full object-contain">
                                     <source src="{{ featured.0.file.url }}" type="video/mp4">
                                     Your browser does not support the video tag.
                                 </video>
@@ -109,15 +109,15 @@
                 </div>
             {% endif %}
         {% endwith %}
-        
+
         <!-- Media Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {% for media in media_items %}
                 {% if not media.is_featured or forloop.counter > 1 %}
-                    <div class="media-card bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition duration-300" 
-                         data-type="{{ media.media_type }}" 
+                    <div class="media-card bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition duration-300 flex flex-col h-full"
+                         data-type="{{ media.media_type }}"
                          data-category="{{ media.category.id|default:'' }}">
-                        <div class="relative aspect-w-16 aspect-h-9 bg-gray-200">
+                        <div class="relative bg-gray-200" style="height: 200px;">
                             {% if media.is_photo %}
                                 <img src="{{ media.file.url }}" alt="{{ media.title }}" class="object-cover w-full h-full">
                             {% else %}
@@ -125,7 +125,7 @@
                                     <i class="fas fa-play-circle text-gray-400 text-4xl"></i>
                                 </div>
                             {% endif %}
-                            
+
                             {% if media.is_private %}
                                 <div class="absolute top-2 right-2">
                                     <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-800 text-white">
@@ -134,8 +134,8 @@
                                 </div>
                             {% endif %}
                         </div>
-                        
-                        <div class="p-4">
+
+                        <div class="p-4 flex-grow">
                             <h2 class="text-lg font-bold text-gray-900 truncate">{{ media.title }}</h2>
                             <div class="flex justify-between items-center text-sm text-gray-500 mt-2">
                                 <div>
@@ -147,8 +147,8 @@
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+
+                        <div class="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center mt-auto">
                             <div class="flex items-center text-sm text-gray-500">
                                 <i class="fas fa-heart mr-1 {% if media.likes.count > 0 %}text-red-500{% endif %}"></i>
                                 <span>{{ media.likes.count }}</span>
@@ -185,7 +185,7 @@
         // Media filtering by type
         const filterButtons = document.querySelectorAll('.filter-btn');
         const mediaCards = document.querySelectorAll('.media-card');
-        
+
         filterButtons.forEach(button => {
             button.addEventListener('click', function() {
                 // Remove active styles from all buttons
@@ -193,13 +193,13 @@
                     btn.classList.remove('bg-primary-600', 'text-white');
                     btn.classList.add('bg-white', 'text-gray-700');
                 });
-                
+
                 // Add active styles to clicked button
                 this.classList.remove('bg-white', 'text-gray-700');
                 this.classList.add('bg-primary-600', 'text-white');
-                
+
                 const filter = this.getAttribute('data-filter');
-                
+
                 mediaCards.forEach(card => {
                     if (filter === 'all' || card.getAttribute('data-type') === filter) {
                         card.classList.remove('hidden');
@@ -209,13 +209,13 @@
                 });
             });
         });
-        
+
         // Media filtering by category
         const categoryFilter = document.getElementById('category-filter');
         if (categoryFilter) {
             categoryFilter.addEventListener('change', function() {
                 const categoryId = this.value;
-                
+
                 mediaCards.forEach(card => {
                     if (!categoryId || card.getAttribute('data-category') === categoryId) {
                         card.classList.remove('hidden');
@@ -225,16 +225,16 @@
                 });
             });
         }
-        
+
         // Media search
         const searchInput = document.getElementById('media-search');
-        
+
         searchInput.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
-            
+
             mediaCards.forEach(card => {
                 const title = card.querySelector('h2').textContent.toLowerCase();
-                
+
                 if (title.includes(searchTerm)) {
                     card.classList.remove('hidden');
                 } else {

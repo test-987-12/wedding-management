@@ -201,9 +201,15 @@ def gallery_upload(request):
         guest_profiles = request.user.guest_profiles.all()
         available_weddings = [guest.wedding for guest in guest_profiles]
 
+    # Get categories for the selected wedding
+    categories = []
+    if wedding:
+        categories = MediaCategory.objects.filter(wedding=wedding)
+
     context = {
         'available_weddings': available_weddings,
         'selected_wedding': wedding,
+        'categories': categories,
     }
 
     return render(request, 'gallery/gallery_upload.html', context)
