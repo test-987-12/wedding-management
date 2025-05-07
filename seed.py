@@ -996,9 +996,16 @@ def create_media(weddings, users):
             title_font = ImageFont.truetype("arial.ttf", 48)
             subtitle_font = ImageFont.truetype("arial.ttf", 36)
         except IOError:
-            # Fallback to default font if system font not available
-            title_font = ImageFont.load_default()
-            subtitle_font = ImageFont.load_default()
+            try:
+                # Linux: Fallback to DejaVuSans
+                fallback_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+                title_font = ImageFont.truetype(fallback_path, 48)
+                subtitle_font = ImageFont.truetype(fallback_path, 36)
+                print(f"Using fallback font: {fallback_path}")
+            except IOError:
+                # Fallback to default font if system font not available
+                title_font = ImageFont.load_default()
+                subtitle_font = ImageFont.load_default()
 
         # Add text
         text_color = (50, 50, 50)  # Darker gray text for better contrast
